@@ -9,7 +9,7 @@ from random import random
 # by finding a Delaunay triangulation of a random set of points and then 
 # finding the corresponding/dual Voronoi diagram.
 
-################################################################### define helper functions below
+################################################################### define helper functions and classes below
 
 # find the euclidean distance between two points
 def euclidean_dist(tup1, tup2) :
@@ -149,12 +149,15 @@ def voronoi_diagram_from_triangulation(triangle_set) :
     return voronoi_edge_set
     
 #prune edges that are out of bounds
-def prune_voronoi(voronoi_edge_set) :
-    vor_edge_copy = voronoi_edge_set.copy()
-    for edge in vor_edge_copy :
+def prune_bounds(edge_set) :
+    edge_copy = edge_set.copy()
+    for edge in edge_copy :
         if (out_of_bounds(edge[0]) or out_of_bounds(edge[1])) :
-            voronoi_edge_set.remove(edge)
-    return voronoi_edge_set
+            edge_set.remove(edge)
+    return edge_set
+
+def prune_small_edges(edge_set, min_size) :
+    return edge_set
 
 def display_edge_set(edge_set) :
     for edge in edge_set :
@@ -167,16 +170,14 @@ def display_triangle_set(triangle_set) :
         plt.plot((triangle[0][0][0], triangle[0][1][0]), (triangle[0][0][1], triangle[0][1][1]), 'g')
         plt.plot((triangle[0][0][0], triangle[0][2][0]), (triangle[0][0][1], triangle[0][2][1]), 'g')
         plt.plot((triangle[0][1][0], triangle[0][2][0]), (triangle[0][1][1], triangle[0][2][1]), 'g')
-    #lim = (0, 1)
-    #plt.xlim(*lim)
-    #plt.ylim(*lim)
     plt.show()
 
 # now run all of the functions in a row!
 
 #### PARAMETERS, CHANGE THESE IF YOU WANT
-num_points = 200
+num_points = 100
 max_dist = 0.05
+min_edge = 0.05
 ####
 
 point_set = generate_points()
@@ -185,5 +186,6 @@ triangle_set = bowyer_watson_triangulation(point_set)
 triangle_set = prune_triangles(triangle_set)
 #display_triangle_set(triangle_set)
 voronoi_edges = voronoi_diagram_from_triangulation(triangle_set)
-voronoi_edges = prune_voronoi(voronoi_edges)
+voronoi_edges = prune_bounds(voronoi_edges)
+voronoi_edges = prune_small_edges(voronoi_edges)
 display_edge_set(voronoi_edges)
