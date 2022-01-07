@@ -17,8 +17,7 @@ class Edge() :
         self.v2 = v2
         self.length = euclidean_dist(self.v1, self.v2)
         self.inc_polygons = []
-        v1.inc_edges.append(self)
-        v2.inc_edges.append(self)
+        self.ref()
     
     def equals(self, other) :
         if (self.v1.equals(other.v1) and self.v2.equals(other.v2)) or (self.v1.equals(other.v2) and self.v2.equals(other.v1)) :
@@ -26,6 +25,20 @@ class Edge() :
         else :
             return False
 
+    def ref(self) :
+        self.v1.inc_edges.append(self)
+        self.v2.inc_edges.append(self)
+    def deref(self) :
+        self.v1.inc_edges.remove(self)
+        self.v2.inc_edges.remove(self)
+
+    def replace_vertex(self, old, new) :
+        self.deref()
+        if old.equals(self.v1) :
+            self.v1 = new
+        else :
+            self.v2 = new
+        self.ref()
 
 class Vertex() :
     def __init__(self, x, y) :
@@ -43,15 +56,27 @@ class Polygon() :
     def __init__(self, edges, vertices) :
         self.edges = edges
         self.vertices = vertices
+        self.ref()
+    def ref(self) :
         for edge in self.edges :
             edge.inc_polygons.append(self)
+    def deref(self) :
+        for edge in self.edges :
+            edge.inc_polygons.remove(self)
+    def deref_edges(self) :
+        for edge in self.edges :
+            edge.deref()
+
 
 class Triangle(Polygon) : # pass vertices in and this creates a triangle that stores all info inc. circumcircle
-    def __init__(self, edges, vertices, circumcenter, circumradius) :
-        super(edges, vertices)
-        self.circumcenter = circumcenter
-        self.circumradius = circumradius
-    def __init__(self, vertices) :
+    def __init__(self, vertices, edges=None, first_edge=None) :
+        if (edges == None) and (first_edge == None) :
+            self.vert__init__(vertices)
+        elif (edges == None) :
+            self.vert_and_firstedge__init__(vertices, first_edge)
+        else :
+            self.vert_and_edges__init__(edges, vertices)
+    def vert__init__(self, vertices) :
         e1 = Edge(vertices[0], vertices[1])
         e2 = Edge(vertices[0], vertices[2])
         e3 = Edge(vertices[1], vertices[2])
@@ -61,13 +86,26 @@ class Triangle(Polygon) : # pass vertices in and this creates a triangle that st
         cc_info = circumcenter_and_radius(temp)
         self.circumcenter = cc_info[0]
         self.circumradius = cc_info[1]
-    def __init__(self, edges, vertices) :
+        self.ref()
+    def vert_and_edges__init__(self, edges, vertices) :
         self.edges = edges
         self.vertices = vertices
         temp = Polygon(self.edges, self.vertices)
         cc_info = circumcenter_and_radius(temp)
         self.circumcenter = cc_info[0]
         self.circumradius = cc_info[1]
+        self.ref()
+    def vert_and_firstedge__init__(self, vertices, first_edge) : # first edge MUST be the edge between vert[0] and vert[1]
+        e1 = first_edge
+        e2 = Edge(vertices[0], vertices[2])
+        e3 = Edge(vertices[1], vertices[2])
+        self.edges = [e1, e2, e3]
+        self.vertices = vertices
+        temp = Polygon(self.edges, self.vertices)
+        cc_info = circumcenter_and_radius(temp)
+        self.circumcenter = cc_info[0]
+        self.circumradius = cc_info[1]
+        self.ref()
 
 
 
@@ -102,9 +140,6 @@ def circumcenter_and_radius(polygon) :
     return (circumcenter, radius)
 
 
-def add_to_triangle_set(triangle_set, triangle) :
-    triangle_set.append(triangle)
-
 # if the vertex is out of the range [0,1] for either x or y then return true
 def out_of_bounds(vert) :
     x = vert.x
@@ -123,7 +158,7 @@ def generate_points():
     point_set = []
     i = 0
     while i < num_points :
-        new_point = (random(), random())
+        new_point = Vertex(random(), random())
         if all([distance_okay(point, new_point) for point in point_set]) :
             point_set.append(new_point)
             i += 1
@@ -132,54 +167,63 @@ def generate_points():
 ## Now do the Bowyer Watson triangulation algorithm on this set of points
 # yields a set of triangles whose circumcenters are vertices on the voronoi diagram
 # the idea of the algorithm : add points inductively and adjust our triangulation so that the bowyer-watson condition
-# (defined as meaning all of the vertices of any triangle are not inside the circumcenter of any other triangle)
+# (defined as all of the vertices of any triangle are not inside the circumcenter of any other triangle)
 # is maintained
 def bowyer_watson_triangulation(point_set) :
 
-    super_triangle = ((-0.5, -0.5), (-0.5, 3), (3, -0.5)) # super triangle, triangle part
-    triangle_set = [] # store as a tuple of 3 items: the tuple of vertices(tuples), the tuple containing the circumcenter position, the radius of the circumcircle
-    add_to_triangle_set(triangle_set, super_triangle)
+    super_triangle = Triangle([Vertex(-0.5, -0.5), Vertex(-0.5, 3), Vertex(3, -0.5)]) # super triangle, triangle part
+    triangle_set = [super_triangle] # store as a tuple of 3 items: the tuple of vertices(tuples), the tuple containing the circumcenter position, the radius of the circumcircle
 
     for point in point_set :
         #check all existing triangle to see if they are violated by the addition of point
         bad_triangle_set = []
         for triangle in triangle_set :
             # check if the point is within the circumcircle (subtract a bit to allow for floating point error)
-            if (euclidean_dist(point, triangle[1]) <= triangle[2] - 0.0001) : 
+            if (euclidean_dist(point, triangle.circumcenter) <= triangle.circumradius - 0.0001) : 
                 bad_triangle_set.append(triangle)
         polygon_edge_set = []
         for bad_triangle in bad_triangle_set :
             # construct a polygon hole by getting all the edges that were on the outside of the violated region
             # i.e. all edges that occur only once in the bad_triangle_set / not shared by multiple bad triangles
-            edge_1 = (bad_triangle[0][0], bad_triangle[0][1])
-            edge_2 = (bad_triangle[0][0], bad_triangle[0][2])
-            edge_3 = (bad_triangle[0][1], bad_triangle[0][2])
-            if all([not edges_equal(edge_1, edge) for edge in polygon_edge_set]) : # check edge 1 unique so far
-                polygon_edge_set.append(edge_1)
-            else : # if not unique, remove from set
-                polygon_edge_set.remove(edge_1)
-            if all([not edges_equal(edge_2, edge) for edge in polygon_edge_set]) :
-                polygon_edge_set.append(edge_2)
-            else :
-                polygon_edge_set.remove(edge_2)
-            if all([not edges_equal(edge_3, edge) for edge in polygon_edge_set]) :
-                polygon_edge_set.append(edge_3)
-            else :
-                polygon_edge_set.remove(edge_3)
+            #edge_1 = (bad_triangle[0][0], bad_triangle[0][1])
+            #edge_2 = (bad_triangle[0][0], bad_triangle[0][2])
+            #edge_3 = (bad_triangle[0][1], bad_triangle[0][2])
+            #if all([not edges_equal(edge_1, edge) for edge in polygon_edge_set]) : # check edge 1 unique so far
+            #    polygon_edge_set.append(edge_1)
+            #else : # if not unique, remove from set
+            #    polygon_edge_set.remove(edge_1)
+            #if all([not edges_equal(edge_2, edge) for edge in polygon_edge_set]) :
+            #    polygon_edge_set.append(edge_2)
+            #else :
+            #    polygon_edge_set.remove(edge_2)
+            #if all([not edges_equal(edge_3, edge) for edge in polygon_edge_set]) :
+            #    polygon_edge_set.append(edge_3)
+            #else :
+            #    polygon_edge_set.remove(edge_3)
+
+            for bad_edge in bad_triangle.edges :
+                if all([not bad_edge.equals(edge) for edge in polygon_edge_set]) : # check edge 1 unique so far
+                    polygon_edge_set.append(bad_edge)
+                else : # if not unique, remove from set
+                    polygon_edge_set.remove(bad_edge)
+                    bad_edge.deref() # make sure vertices don't reference this edge anymore since it doesn't exist
             triangle_set.remove(bad_triangle)
+            bad_triangle.deref()
         # now add triangles constructed by connecting the point to each edge of the polygon hole, like slices of a pie
         for edge in polygon_edge_set :
-            new_triangle = (point, edge[0], edge[1])
-            add_to_triangle_set(triangle_set, new_triangle)
+            new_triangle = Triangle([edge.v1, edge.v2, point], first_edge=edge)
+            triangle_set.append(new_triangle)
     # now we are done adding all points to our triangulation
     return triangle_set
 
 def prune_triangles(triangle_set) :
     # remove any triangle that is connected to the original super_triangle (as that is extra leftover from construction process)
     tri_set_copy = triangle_set.copy()
-    for triangle in triangle_set.copy() :
-        if any([out_of_bounds(vert) for vert in triangle[0]]) :
+    for triangle in tri_set_copy :
+        if any([out_of_bounds(vert) for vert in triangle.vertices]) :
             triangle_set.remove(triangle)
+            triangle.deref()
+            triangle.deref_edges()
     return triangle_set
 
 
@@ -188,29 +232,34 @@ def voronoi_diagram_from_triangulation(triangle_set) :
     voronoi_edge_set = []
     for triangle1 in triangle_set :
         for triangle2 in triangle_set :
-            if not (triangle1 == triangle2) : # check that 2 unique triangles
-                triangle1_e1 = (triangle1[0][0], triangle1[0][1])
-                triangle1_e2 = (triangle1[0][0], triangle1[0][2])
-                triangle1_e3 = (triangle1[0][1], triangle1[0][2])
-                triangle1_edges = [triangle1_e1, triangle1_e2, triangle1_e3]
-                triangle2_e1 = (triangle2[0][0], triangle2[0][1])
-                triangle2_e2 = (triangle2[0][0], triangle2[0][2])
-                triangle2_e3 = (triangle2[0][1], triangle2[0][2])
-                triangle2_edges = [triangle2_e1, triangle2_e2, triangle2_e3]
+            if not (triangle1.equals(triangle2)) : # check that 2 unique triangles
                 # if the two triangle have any shared edge, connect their circumcenters and thats an edge on the voronoi diagram
-                if any([any([edges_equal(t1_edge, t2_edge) for t2_edge in triangle2_edges]) for t1_edge in triangle1_edges]) :
-                    voronoi_edge_set.append((triangle1[1], triangle2[1]))
+                if any([edge.inc_polygons.contains(triangle2) for edge in triangle1.edges]) :
+                    voronoi_edge_set.append(Edge(triangle1.circumcenter, triangle2.circumcenter))
     return voronoi_edge_set
     
 #prune edges that are out of bounds
 def prune_bounds(edge_set) :
     edge_copy = edge_set.copy()
     for edge in edge_copy :
-        if (out_of_bounds(edge[0]) or out_of_bounds(edge[1])) :
+        if (out_of_bounds(edge.v1) or out_of_bounds(edge.v2)) :
             edge_set.remove(edge)
+            edge.deref()
     return edge_set
 
 def prune_small_edges(edge_set, min_size) :
+    cpy = edge_set.copy()
+    for edge in cpy :
+        if (edge.length < min_size) :
+            # shrink edge to one point (midpoint of edge) and combine
+            mid_point = Vertex((edge.v1.x + edge.v2.x)/2, (edge.v1.y + edge.v2.y)/2)
+            # make any edge that connected to any of the previous vertices connect to this midpoint instead
+            for v1_edge in edge.v1.inc_edges :
+                v1_edge.replace_vertex(edge.v1, mid_point)
+            for v2_edge in edge.v2.inc_edges :
+                v2_edge.replace_vertex(edge.v2, mid_point)
+            edge_set.remove(edge)
+            edge.deref()
     return edge_set
 
 def display_edge_set(edge_set) :
@@ -241,5 +290,6 @@ triangle_set = prune_triangles(triangle_set)
 #display_triangle_set(triangle_set)
 voronoi_edges = voronoi_diagram_from_triangulation(triangle_set)
 voronoi_edges = prune_bounds(voronoi_edges)
+display_edge_set(voronoi_edges)
 voronoi_edges = prune_small_edges(voronoi_edges)
 display_edge_set(voronoi_edges)
