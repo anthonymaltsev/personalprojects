@@ -26,8 +26,10 @@ class Edge() :
             return False
 
     def ref(self) :
-        self.v1.inc_edges.append(self)
-        self.v2.inc_edges.append(self)
+        if not self in self.v1.inc_edges :
+            self.v1.inc_edges.append(self)
+        if not self in self.v2.inc_edges :
+            self.v2.inc_edges.append(self)
     def deref(self) :
         self.v1.inc_edges.remove(self)
         self.v2.inc_edges.remove(self)
@@ -38,7 +40,11 @@ class Edge() :
             self.v1 = new
         else :
             self.v2 = new
+        self.length = euclidean_dist(self.v1, self.v2)
         self.ref()
+    
+    def __str__(self) :
+        return "(("+str(self.v1.x)+", "+str(self.v1.y)+"), ("+str(self.v2.x)+", "+str(self.v2.y)+"))"
 
 class Vertex() :
     def __init__(self, x, y) :
@@ -108,14 +114,13 @@ class Triangle(Polygon) : # pass vertices in and this creates a triangle that st
         self.ref()
 
 
-
 # find the euclidean distance between two vertices
 def euclidean_dist(v1, v2) :
     return ((v1.x - v2.x)**2 + (v1.y - v2.y)**2)**0.5
 
 #check whether two points are far enough apart
 def distance_okay(v1, v2):
-    if euclidean_dist(v1, v2) >= max_dist : #euclidean distance >= max_dist
+    if euclidean_dist(v1, v2) >= min_dist : #euclidean distance >= max_dist
         return True
     else :
         return False
@@ -153,6 +158,14 @@ def out_of_bounds(vert) :
 
 #################################################################################### end helper functions
 
+#### DEBUG
+#v1 = Vertex(0.7623, 0.43221)
+#v2 = Vertex(0.2367, 0.8173)
+#e1 = Edge(v1, v2)
+#e2 = Edge(v2, v1)
+#assert e1.equals(e2)
+#### END DEBUG
+
 # generate a random set of points
 def generate_points():
     point_set = []
@@ -185,27 +198,12 @@ def bowyer_watson_triangulation(point_set) :
         for bad_triangle in bad_triangle_set :
             # construct a polygon hole by getting all the edges that were on the outside of the violated region
             # i.e. all edges that occur only once in the bad_triangle_set / not shared by multiple bad triangles
-            #edge_1 = (bad_triangle[0][0], bad_triangle[0][1])
-            #edge_2 = (bad_triangle[0][0], bad_triangle[0][2])
-            #edge_3 = (bad_triangle[0][1], bad_triangle[0][2])
-            #if all([not edges_equal(edge_1, edge) for edge in polygon_edge_set]) : # check edge 1 unique so far
-            #    polygon_edge_set.append(edge_1)
-            #else : # if not unique, remove from set
-            #    polygon_edge_set.remove(edge_1)
-            #if all([not edges_equal(edge_2, edge) for edge in polygon_edge_set]) :
-            #    polygon_edge_set.append(edge_2)
-            #else :
-            #    polygon_edge_set.remove(edge_2)
-            #if all([not edges_equal(edge_3, edge) for edge in polygon_edge_set]) :
-            #    polygon_edge_set.append(edge_3)
-            #else :
-            #    polygon_edge_set.remove(edge_3)
-
+            
             for bad_edge in bad_triangle.edges :
                 if all([not bad_edge.equals(edge) for edge in polygon_edge_set]) : # check edge 1 unique so far
                     polygon_edge_set.append(bad_edge)
                 else : # if not unique, remove from set
-                    polygon_edge_set.remove(bad_edge)
+                    [polygon_edge_set.remove(edge) for edge in polygon_edge_set if edge.equals(bad_edge)]
                     bad_edge.deref() # make sure vertices don't reference this edge anymore since it doesn't exist
             triangle_set.remove(bad_triangle)
             bad_triangle.deref()
@@ -232,9 +230,9 @@ def voronoi_diagram_from_triangulation(triangle_set) :
     voronoi_edge_set = []
     for triangle1 in triangle_set :
         for triangle2 in triangle_set :
-            if not (triangle1.equals(triangle2)) : # check that 2 unique triangles
+            if not (triangle1.circumcenter.equals(triangle2.circumcenter)) : # check that 2 unique triangles by comparing circumcenters and hoping diff cc means diff triangle
                 # if the two triangle have any shared edge, connect their circumcenters and thats an edge on the voronoi diagram
-                if any([edge.inc_polygons.contains(triangle2) for edge in triangle1.edges]) :
+                if any([any([t1_edge.equals(t2_edge) for t2_edge in triangle2.edges]) for t1_edge in triangle1.edges]) :
                     voronoi_edge_set.append(Edge(triangle1.circumcenter, triangle2.circumcenter))
     return voronoi_edge_set
     
@@ -248,38 +246,45 @@ def prune_bounds(edge_set) :
     return edge_set
 
 def prune_small_edges(edge_set, min_size) :
-    cpy = edge_set.copy()
-    for edge in cpy :
-        if (edge.length < min_size) :
-            # shrink edge to one point (midpoint of edge) and combine
-            mid_point = Vertex((edge.v1.x + edge.v2.x)/2, (edge.v1.y + edge.v2.y)/2)
-            # make any edge that connected to any of the previous vertices connect to this midpoint instead
-            for v1_edge in edge.v1.inc_edges :
-                v1_edge.replace_vertex(edge.v1, mid_point)
-            for v2_edge in edge.v2.inc_edges :
-                v2_edge.replace_vertex(edge.v2, mid_point)
-            edge_set.remove(edge)
-            edge.deref()
+    any_small = True
+    while any_small :
+        any_small = False
+        for edge in edge_set :
+            if (edge.length < min_size) :
+                any_small = True
+                edge_set.remove(edge)
+                edge.deref()
+                # shrink edge to one point (midpoint of edge) and combine
+                mid_point = Vertex((edge.v1.x + edge.v2.x)/2, (edge.v1.y + edge.v2.y)/2)
+                # make any edge that connected to any of the previous vertices connect to this midpoint instead
+                for v1_edge in edge.v1.inc_edges :
+                    if (not v1_edge.equals(edge)) :
+                        v1_edge.replace_vertex(edge.v1, mid_point)
+                for v2_edge in edge.v2.inc_edges :
+                    if (not v2_edge.equals(edge)) :
+                        v2_edge.replace_vertex(edge.v2, mid_point)
+                break
     return edge_set
 
 def display_edge_set(edge_set) :
     for edge in edge_set :
-        plt.plot((edge[0][0], edge[1][0]), (edge[0][1], edge[1][1]), 'b')
+        #print(edge)
+        plt.plot((edge.v1.x, edge.v2.x), (edge.v1.y, edge.v2.y), 'b')
     plt.show()
 
 def display_triangle_set(triangle_set) :
     #visualise the triangles
     for triangle in triangle_set :
-        plt.plot((triangle[0][0][0], triangle[0][1][0]), (triangle[0][0][1], triangle[0][1][1]), 'g')
-        plt.plot((triangle[0][0][0], triangle[0][2][0]), (triangle[0][0][1], triangle[0][2][1]), 'g')
-        plt.plot((triangle[0][1][0], triangle[0][2][0]), (triangle[0][1][1], triangle[0][2][1]), 'g')
+        plt.plot((triangle.edges[0].v1.x, triangle.edges[0].v2.x), (triangle.edges[0].v1.y, triangle.edges[0].v2.y), 'g')
+        plt.plot((triangle.edges[1].v1.x, triangle.edges[1].v2.x), (triangle.edges[1].v1.y, triangle.edges[1].v2.y), 'g')
+        plt.plot((triangle.edges[2].v1.x, triangle.edges[2].v2.x), (triangle.edges[2].v1.y, triangle.edges[2].v2.y), 'g')
     plt.show()
 
 # now run all of the functions in a row!
 
 #### PARAMETERS, CHANGE THESE IF YOU WANT
-num_points = 100
-max_dist = 0.05
+num_points = 30
+min_dist = 0.05
 min_edge = 0.05
 ####
 
@@ -291,5 +296,36 @@ triangle_set = prune_triangles(triangle_set)
 voronoi_edges = voronoi_diagram_from_triangulation(triangle_set)
 voronoi_edges = prune_bounds(voronoi_edges)
 display_edge_set(voronoi_edges)
-voronoi_edges = prune_small_edges(voronoi_edges)
+voronoi_edges = prune_small_edges(voronoi_edges, min_edge)
 display_edge_set(voronoi_edges)
+
+
+#### DEBUGGING BELOW
+#v1 = Vertex(0.25, 0.25)
+#v2 = Vertex(0.25, 0.75)
+#v3 = Vertex(0.75, 0.75)
+#v4 = Vertex(0.75, 0.25)
+#edge12 = Edge(v1, v2)
+#edge23 = Edge(v2, v3)
+#edge34 = Edge(v3, v4)
+#edge41 = Edge(v4, v1)
+#mid_point = Vertex((edge34.v1.x + edge34.v2.x)/2, (edge34.v1.y + edge34.v2.y)/2)
+#
+#plt.plot((edge12.v1.x, edge12.v2.x), (edge12.v1.y, edge12.v2.y), 'b')
+#plt.plot((edge23.v1.x, edge23.v2.x), (edge23.v1.y, edge23.v2.y), 'b')
+#plt.plot((edge34.v1.x, edge34.v2.x), (edge34.v1.y, edge34.v2.y), 'b')
+#plt.plot((edge41.v1.x, edge41.v2.x), (edge41.v1.y, edge41.v2.y), 'b')
+#
+#for v1_edge in edge34.v1.inc_edges :
+#    if (not v1_edge.equals(edge34)) :
+#        v1_edge.replace_vertex(edge34.v1, mid_point)
+#for v2_edge in edge34.v2.inc_edges :
+#    if (not v2_edge.equals(edge34)) :
+#        v2_edge.replace_vertex(edge34.v2, mid_point)
+#
+#plt.plot((edge12.v1.x, edge12.v2.x), (edge12.v1.y, edge12.v2.y), 'g')
+#plt.plot((edge23.v1.x, edge23.v2.x), (edge23.v1.y, edge23.v2.y), 'g')
+##plt.plot((edge34.v1.x, edge34.v2.x), (edge34.v1.y, edge34.v2.y), 'g')
+#plt.plot((edge41.v1.x, edge41.v2.x), (edge41.v1.y, edge41.v2.y), 'g')
+#
+#plt.show()
