@@ -53,7 +53,7 @@ class Vertex() :
         self.inc_edges = []
     
     def equals(self, other) :
-        if (self.x == other.x and self.y == other.y) :
+        if (self.x == other.x and self.y == other.y) : # abs(x1 - x2 ) < 0.001
             return True
         else :
             return False
@@ -220,8 +220,9 @@ def prune_triangles(triangle_set) :
     for triangle in tri_set_copy :
         if any([out_of_bounds(vert) for vert in triangle.vertices]) :
             triangle_set.remove(triangle)
-            triangle.deref()
             triangle.deref_edges()
+            triangle.deref()
+            
     return triangle_set
 
 
@@ -283,49 +284,49 @@ def display_triangle_set(triangle_set) :
 # now run all of the functions in a row!
 
 #### PARAMETERS, CHANGE THESE IF YOU WANT
-num_points = 30
-min_dist = 0.05
+num_points = 100
+min_dist = 0.02
 min_edge = 0.05
 ####
 
-point_set = generate_points()
-triangle_set = bowyer_watson_triangulation(point_set)
+#point_set = generate_points()
+#triangle_set = bowyer_watson_triangulation(point_set)
 #display_triangle_set(triangle_set)
-triangle_set = prune_triangles(triangle_set)
+#triangle_set = prune_triangles(triangle_set)
 #display_triangle_set(triangle_set)
-voronoi_edges = voronoi_diagram_from_triangulation(triangle_set)
-voronoi_edges = prune_bounds(voronoi_edges)
-display_edge_set(voronoi_edges)
-voronoi_edges = prune_small_edges(voronoi_edges, min_edge)
-display_edge_set(voronoi_edges)
-
+#voronoi_edges = voronoi_diagram_from_triangulation(triangle_set)
+#voronoi_edges = prune_bounds(voronoi_edges)
+#display_edge_set(voronoi_edges)
+#voronoi_edges = prune_small_edges(voronoi_edges, min_edge)
+#display_edge_set(voronoi_edges)
+#
 
 #### DEBUGGING BELOW
-#v1 = Vertex(0.25, 0.25)
-#v2 = Vertex(0.25, 0.75)
-#v3 = Vertex(0.75, 0.75)
-#v4 = Vertex(0.75, 0.25)
-#edge12 = Edge(v1, v2)
-#edge23 = Edge(v2, v3)
-#edge34 = Edge(v3, v4)
-#edge41 = Edge(v4, v1)
-#mid_point = Vertex((edge34.v1.x + edge34.v2.x)/2, (edge34.v1.y + edge34.v2.y)/2)
-#
-#plt.plot((edge12.v1.x, edge12.v2.x), (edge12.v1.y, edge12.v2.y), 'b')
-#plt.plot((edge23.v1.x, edge23.v2.x), (edge23.v1.y, edge23.v2.y), 'b')
-#plt.plot((edge34.v1.x, edge34.v2.x), (edge34.v1.y, edge34.v2.y), 'b')
-#plt.plot((edge41.v1.x, edge41.v2.x), (edge41.v1.y, edge41.v2.y), 'b')
-#
-#for v1_edge in edge34.v1.inc_edges :
-#    if (not v1_edge.equals(edge34)) :
-#        v1_edge.replace_vertex(edge34.v1, mid_point)
-#for v2_edge in edge34.v2.inc_edges :
-#    if (not v2_edge.equals(edge34)) :
-#        v2_edge.replace_vertex(edge34.v2, mid_point)
-#
-#plt.plot((edge12.v1.x, edge12.v2.x), (edge12.v1.y, edge12.v2.y), 'g')
-#plt.plot((edge23.v1.x, edge23.v2.x), (edge23.v1.y, edge23.v2.y), 'g')
-##plt.plot((edge34.v1.x, edge34.v2.x), (edge34.v1.y, edge34.v2.y), 'g')
-#plt.plot((edge41.v1.x, edge41.v2.x), (edge41.v1.y, edge41.v2.y), 'g')
-#
-#plt.show()
+v1 = Vertex(0.25, 0.25)
+v2 = Vertex(0.25, 0.75)
+v3 = Vertex(0.75, 0.75)
+v4 = Vertex(0.75, 0.25)
+edge12 = Edge(v1, v2)
+edge23 = Edge(v2, v3)
+edge34 = Edge(v3, v4)
+edge41 = Edge(v4, v1)
+mid_point = Vertex((edge34.v1.x + edge34.v2.x)/2, (edge34.v1.y + edge34.v2.y)/2)
+
+plt.plot((edge12.v1.x, edge12.v2.x), (edge12.v1.y, edge12.v2.y), 'b')
+plt.plot((edge23.v1.x, edge23.v2.x), (edge23.v1.y, edge23.v2.y), 'b')
+plt.plot((edge34.v1.x, edge34.v2.x), (edge34.v1.y, edge34.v2.y), 'b')
+plt.plot((edge41.v1.x, edge41.v2.x), (edge41.v1.y, edge41.v2.y), 'b')
+
+for v1_edge in edge34.v1.inc_edges :
+    if (not v1_edge.equals(edge34)) :
+        v1_edge.replace_vertex(edge34.v1, mid_point)
+for v2_edge in edge34.v2.inc_edges :
+    if (not v2_edge.equals(edge34)) :
+        v2_edge.replace_vertex(edge34.v2, mid_point)
+
+plt.plot((edge12.v1.x, edge12.v2.x), (edge12.v1.y, edge12.v2.y), 'g')
+plt.plot((edge23.v1.x, edge23.v2.x), (edge23.v1.y, edge23.v2.y), 'g')
+#plt.plot((edge34.v1.x, edge34.v2.x), (edge34.v1.y, edge34.v2.y), 'g')
+plt.plot((edge41.v1.x, edge41.v2.x), (edge41.v1.y, edge41.v2.y), 'g')
+
+plt.show()
