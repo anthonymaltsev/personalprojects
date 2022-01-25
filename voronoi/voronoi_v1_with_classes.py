@@ -269,6 +269,15 @@ def prune_small_edges(edge_set, min_size) :
                 break
     return edge_set
 
+# another custom attempt at voronoi relaxation / simplification
+# find the average edge length then adjust all edges to change their length to be a bit closer to that average
+def average_out_lengths(edge_set) :
+    total_length = 0
+    for edge in edge_set :
+        total_length += edge.length
+    avg_length = total_length / len(edge_set)
+    
+
 def display_edge_set(edge_set) :
     for edge in edge_set :
         #print(edge)
@@ -286,9 +295,9 @@ def display_triangle_set(triangle_set) :
 # now run all of the functions in a row!
 
 #### PARAMETERS, CHANGE THESE IF YOU WANT
-num_points = 100
+num_points = 200
 min_dist = 0.02
-min_edge = 0.05
+min_edge = 0.04
 ####
 
 point_set = generate_points()
