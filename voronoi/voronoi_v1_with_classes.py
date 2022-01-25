@@ -302,9 +302,9 @@ min_edge = 0.04
 
 point_set = generate_points()
 triangle_set = bowyer_watson_triangulation(point_set)
-#display_triangle_set(triangle_set)
+display_triangle_set(triangle_set)
 triangle_set = prune_triangles(triangle_set)
-#display_triangle_set(triangle_set)
+display_triangle_set(triangle_set)
 voronoi_edges = voronoi_diagram_from_triangulation(triangle_set)
 voronoi_edges = prune_bounds(voronoi_edges)
 display_edge_set(voronoi_edges)
